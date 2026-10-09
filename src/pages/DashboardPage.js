@@ -47,6 +47,7 @@ export default function DashboardPage() {
   if (loading) return <DashboardSkeleton />;
 
   const settings = profile?.settings || {};
+  const chargeRanges = Array.isArray(settings.chargeRanges) ? settings.chargeRanges : [];
   const ready = Math.abs(totalPercent - 100) < 0.0001;
   const received = deposits.reduce((sum, deposit) => sum + Number(deposit.receivedAmount || 0), 0);
 
@@ -56,8 +57,7 @@ export default function DashboardPage() {
       <div className="stats">
         {[
           ['Charge balance', `${money(profile?.user?.balance)} USDT`],
-          ['Flat charge', `${money(settings.chargeFlat)} USDT`],
-          ['Percent charge', `${money(settings.chargePercent)}%`],
+          ['Charge ranges', chargeRanges.length ? String(chargeRanges.length) : 'None'],
           ['USDT received', `${money(received)} USDT`],
         ].map(([label, value], index) => (
           <motion.article key={label} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
@@ -79,6 +79,18 @@ export default function DashboardPage() {
             <h2>Charge wallet</h2>
             <span className="pill">USDT</span>
           </header>
+          {chargeRanges.length ? (
+            <ul className="charge-list">
+              {chargeRanges.map((row) => (
+                <li key={`${row.min}-${row.max}-${row.percent}`}>
+                  <span>{money(row.min)} – {money(row.max)} USDT</span>
+                  <strong>{money(row.percent)}%</strong>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted charge-note">No charge ranges are set.</p>
+          )}
           <Link className="text-link" to="/wallet">Add charge balance</Link>
         </article>
       </div>

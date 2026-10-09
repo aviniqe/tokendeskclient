@@ -1,6 +1,9 @@
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
+import { HiOutlineDocumentDuplicate, HiOutlineDocumentText } from 'react-icons/hi2';
 import { getDeposits } from '../services/api';
+import Dialog from '../components/Dialog';
+import RowMenu from '../components/RowMenu';
 import SearchSelect from '../components/SearchSelect';
 import { TableSkeleton } from '../components/Skeleton';
 import { useRefresh } from '../hooks/useRefresh';
@@ -26,19 +29,36 @@ function short(value) {
   return `${value.slice(0, 8)}…${value.slice(-6)}`;
 }
 
+function when(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString();
+}
+
 export default function ReportsPage() {
   const [deposits, setDeposits] = useState([]);
   const [status, setStatus] = useState('all');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [detail, setDetail] = useState(null);
+  const [copied, setCopied] = useState('');
+
+  function applyDeposits(rows) {
+    setDeposits(rows);
+    setDetail((current) => {
+      if (!current) return current;
+      return rows.find((row) => row.id === current.id) || current;
+    });
+  }
 
   useEffect(() => {
     getDeposits()
-      .then((data) => setDeposits(data.deposits))
+      .then((data) => applyDeposits(data.deposits))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
     const timer = setInterval(() => {
-      getDeposits().then((data) => setDeposits(data.deposits)).catch(() => {});
+      getDeposits().then((data) => applyDeposits(data.deposits)).catch(() => {});
     }, 10000);
     return () => clearInterval(timer);
   }, []);
@@ -48,13 +68,29 @@ export default function ReportsPage() {
     setError('');
     try {
       const data = await getDeposits();
-      setDeposits(data.deposits);
+      applyDeposits(data.deposits);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
   });
+
+  async function copyText(key, value) {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const input = document.createElement('textarea');
+      input.value = value;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      input.remove();
+    }
+    setCopied(key);
+    window.setTimeout(() => setCopied((current) => (current === key ? '' : current)), 1400);
+  }
 
   const visible = status === 'all' ? deposits : deposits.filter((deposit) => deposit.status === status);
 
@@ -79,6 +115,7 @@ export default function ReportsPage() {
                   <th>Received</th>
                   <th>Charge</th>
                   <th>Payouts</th>
+                  <th className="col-actions" />
                 </tr>
               </thead>
               <tbody>
@@ -106,14 +143,153 @@ export default function ReportsPage() {
                         </div>
                       ))}
                     </td>
+                    <td className="col-actions">
+                      <RowMenu label="Deposit actions">
+                        {(close) => (
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => {
+                              close();
+                              setCopied('');
+                              setDetail(deposit);
+                            }}
+                          >
+                            Details
+                          </button>
+                        )}
+                      </RowMenu>
+                    </td>
                   </tr>
                 ))}
-                {visible.length === 0 && <tr><td colSpan="6" className="muted">No deposits for this status.</td></tr>}
+                {visible.length === 0 && <tr><td colSpan="7" className="muted">No deposits for this status.</td></tr>}
               </tbody>
             </table>
           </div>
         </article>
       )}
+      <Dialog
+        open={Boolean(detail)}
+        title="Deposit details"
+        tone="accent"
+        icon={HiOutlineDocumentText}
+        wide
+        onClose={() => setDetail(null)}
+      >
+        {detail && (
+          <>
+            <div className="detail-row">
+              <span>Status</span>
+              <strong><span className={`pill is-${detail.status}`}>{detail.status}</span></strong>
+            </div>
+            <div className="detail-row">
+              <span>When</span>
+              <strong>{when(detail.createdAt)}</strong>
+            </div>
+            <div className="detail-row">
+              <span>Received</span>
+              <strong>{money(detail.receivedAmount)} USDT</strong>
+            </div>
+            <div className="detail-row">
+              <span>Charge</span>
+              <strong>{money(detail.chargeAmount)} USDT</strong>
+            </div>
+            <div>
+              <span className="muted">Deposit id</span>
+              <p className="secret-value mono">{detail.id}</p>
+            </div>
+            <div>
+              <span className="muted">Deposit address</span>
+              <p className="secret-value mono">{detail.address}</p>
+              <button type="button" className="ghost" onClick={() => copyText('address', detail.address)}>
+                <HiOutlineDocumentDuplicate />
+                {copied === 'address' ? 'Copied' : 'Copy address'}
+              </button>
+            </div>
+            <div>
+              <span className="muted">From address</span>
+              <p className="secret-value mono">{detail.fromAddress || '—'}</p>
+              {detail.fromAddress && (
+                <button type="button" className="ghost" onClick={() => copyText('from', detail.fromAddress)}>
+                  <HiOutlineDocumentDuplicate />
+                  {copied === 'from' ? 'Copied' : 'Copy address'}
+                </button>
+              )}
+            </div>
+            <div>
+              <span className="muted">Incoming transaction</span>
+              {detail.receivedTxHash ? (
+                <>
+                  <p className="secret-value mono">{detail.receivedTxHash}</p>
+                  <div className="actions">
+                    <a className="ghost" href={`https://bscscan.com/tx/${detail.receivedTxHash}`} target="_blank" rel="noreferrer">View on BscScan</a>
+                    <button type="button" className="ghost" onClick={() => copyText('in-hash', detail.receivedTxHash)}>
+                      <HiOutlineDocumentDuplicate />
+                      {copied === 'in-hash' ? 'Copied' : 'Copy hash'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p className="secret-value mono">—</p>
+              )}
+            </div>
+            {detail.errorMessage && <p className="form-alert" role="alert">{detail.errorMessage}</p>}
+            <div>
+              <span className="muted">Split transactions</span>
+              {detail.payouts.length === 0 && <p className="secret-value">No split has been planned yet.</p>}
+              {detail.payouts.length > 0 && (
+                <div className="stack">
+                  {detail.payouts.map((payout, index) => (
+                    <article key={payout.id} className="split-card">
+                      <div className="detail-row">
+                        <strong>{payout.label || `Payout ${index + 1}`}</strong>
+                        <span className={`pill is-${payout.status}`}>{payout.status}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span>Percent</span>
+                        <strong>{money(payout.percent)}%</strong>
+                      </div>
+                      <div className="detail-row">
+                        <span>Amount</span>
+                        <strong>{money(payout.amount)} USDT</strong>
+                      </div>
+                      <div>
+                        <span className="muted">Wallet address</span>
+                        <p className="secret-value mono">{payout.toAddress}</p>
+                        <button type="button" className="ghost" onClick={() => copyText(`wallet-${payout.id}`, payout.toAddress)}>
+                          <HiOutlineDocumentDuplicate />
+                          {copied === `wallet-${payout.id}` ? 'Copied' : 'Copy address'}
+                        </button>
+                      </div>
+                      <div>
+                        <span className="muted">Transaction hash</span>
+                        {payout.txHash ? (
+                          <>
+                            <p className="secret-value mono">{payout.txHash}</p>
+                            <div className="actions">
+                              <a className="ghost" href={`https://bscscan.com/tx/${payout.txHash}`} target="_blank" rel="noreferrer">View on BscScan</a>
+                              <button type="button" className="ghost" onClick={() => copyText(`hash-${payout.id}`, payout.txHash)}>
+                                <HiOutlineDocumentDuplicate />
+                                {copied === `hash-${payout.id}` ? 'Copied' : 'Copy hash'}
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="secret-value mono">—</p>
+                        )}
+                      </div>
+                      {payout.errorMessage && <p className="error">{payout.errorMessage}</p>}
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="actions">
+              <button type="button" className="primary" onClick={() => setDetail(null)}>Close</button>
+            </div>
+          </>
+        )}
+      </Dialog>
     </motion.section>
   );
 }

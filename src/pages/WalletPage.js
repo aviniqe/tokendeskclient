@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { HiOutlineDocumentDuplicate, HiOutlineDocumentText, HiOutlineQrCode } from 'react-icons/hi2';
+import { HiOutlineDocumentDuplicate, HiOutlineDocumentText, HiOutlineQrCode, HiOutlineReceiptPercent } from 'react-icons/hi2';
 import Dialog from '../components/Dialog';
 import Field from '../components/Field';
 import RowMenu from '../components/RowMenu';
@@ -32,6 +32,7 @@ export default function WalletPage() {
   const [confirmHash, setConfirmHash] = useState('');
   const [detail, setDetail] = useState(null);
   const [detailCopied, setDetailCopied] = useState('');
+  const [chargesOpen, setChargesOpen] = useState(false);
 
   async function load() {
     const next = await getWallet();
@@ -122,13 +123,20 @@ export default function WalletPage() {
   }
 
   const platform = data?.settings?.platformDepositAddress;
+  const chargeRanges = Array.isArray(data?.settings?.chargeRanges) ? data.settings.chargeRanges : [];
 
   return (
     <motion.section className="stack" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
       <article className="card deposit">
         <div className="deposit__balance">
-          <span>Charge balance</span>
-          <strong>{money(data?.balance)} <small>USDT</small></strong>
+          <div>
+            <span>Charge balance</span>
+            <strong>{money(data?.balance)} <small>USDT</small></strong>
+          </div>
+          <button type="button" className="ghost" onClick={() => setChargesOpen(true)}>
+            <HiOutlineReceiptPercent />
+            Show charges
+          </button>
         </div>
         {platform ? (
           <div className="deposit__pay">
@@ -185,6 +193,44 @@ export default function WalletPage() {
         <div className="actions">
           <button type="button" className="ghost" onClick={() => setConfirmHash('')} disabled={busy}>Cancel</button>
           <button type="button" className="primary" onClick={confirmDeposit} disabled={busy}>{busy ? 'Checking…' : 'Submit deposit'}</button>
+        </div>
+      </Dialog>
+      <Dialog
+        open={chargesOpen}
+        title="Split charges"
+        tone="accent"
+        icon={HiOutlineReceiptPercent}
+        wide
+        onClose={() => setChargesOpen(false)}
+      >
+        {chargeRanges.length === 0 ? (
+          <p className="fee-empty">No charge ranges are set. A split is charged 0.</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="fee-table">
+              <thead>
+                <tr>
+                  <th className="col-num">#</th>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Charge</th>
+                </tr>
+              </thead>
+              <tbody>
+                {chargeRanges.map((row, index) => (
+                  <tr key={`${row.min}-${row.max}-${row.percent}`}>
+                    <td className="col-num">{index + 1}</td>
+                    <td>{money(row.min)} USDT</td>
+                    <td>{money(row.max)} USDT</td>
+                    <td><span className="fee-rate">{money(row.percent)}%</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="actions">
+          <button type="button" className="primary" aria-label="Close charges" onClick={() => setChargesOpen(false)}>Close</button>
         </div>
       </Dialog>
       <article className="card">

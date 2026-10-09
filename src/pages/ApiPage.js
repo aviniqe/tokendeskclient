@@ -251,7 +251,7 @@ export default function ApiPage() {
         </div>
         <ol className="docs-steps">
           <li>Set the payout split so the active percentages total 100%.</li>
-          <li>Keep enough USDT in the charge wallet for the flat fee plus the percent of the deposit.</li>
+          <li>Keep enough USDT in the charge wallet for the percent that matches the deposit amount.</li>
           <li>Create a deposit. Send the USDT to the address in the response. One request assigns one address.</li>
           <li>Poll the read endpoint. The watcher checks about every 15 seconds.</li>
         </ol>
@@ -391,7 +391,7 @@ export default function ApiPage() {
         <p className="docs-note">Expected payload: none.</p>
         <CodeBlock label="cURL" code={readCurl} copied={copied === 'read-curl'} onCopy={() => copyText('read-curl', readCurl)} />
         <h3>Success · 200 OK</h3>
-        <p className="muted">The sample below is a finished 100 USDT deposit with a 60/40 split. chargeAmount here is an illustration. The live charge is the operator’s flat fee plus their percent of receivedAmount.</p>
+        <p className="muted">The sample below is a finished 100 USDT deposit with a 60/40 split. chargeAmount here is an illustration. The live charge is receivedAmount times the percent of the range that contains that amount.</p>
         <CodeBlock label="application/json" code={READ_RESPONSE} copied={copied === 'read-body'} onCopy={() => copyText('read-body', READ_RESPONSE)} />
         <h3>Errors</h3>
         <div className="table-wrap">
@@ -457,7 +457,7 @@ export default function ApiPage() {
             </tbody>
           </table>
         </div>
-        <p className="docs-note">Charge formula: flat fee + receivedAmount × percent ÷ 100. Both numbers are set by the operator. A zero charge still lets the split run. The charge is debited from the virtual wallet when the split starts, not when the address is created.</p>
+        <p className="docs-note">Charge formula: receivedAmount × the percent of the matching range ÷ 100. Ranges are set by the operator, for example 1 to 10 at 1% and 11 to 100 at 0.5%. An amount that falls between ranges, such as 10.10, is rounded to the nearest whole number to choose the range. An amount under 1 uses the range that contains 1. An amount over 100000 uses the range that contains 100000. A zero charge still lets the split run. The charge is debited from the virtual wallet when the split starts, not when the address is created.</p>
       </article>
 
       <article className="card stack">
